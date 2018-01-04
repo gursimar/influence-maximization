@@ -26,7 +26,7 @@ class Node{
 
 
 template <typename T>
-std::ostream& operator<< (std::ostream& out, const std::vector<T>& v) {
+std::ostream& operator<<(std::ostream& out, const std::vector<T>& v) {
   if ( !v.empty() ) {
     out << '[';
     std::copy (v.begin(), v.end(), std::ostream_iterator<T>(out, ", "));
@@ -36,7 +36,7 @@ std::ostream& operator<< (std::ostream& out, const std::vector<T>& v) {
 }
 
 template <typename T>
-std::ostream& operator<< (std::ostream& out, const std::set<T>& v) {
+std::ostream& operator<<(std::ostream& out, const std::set<T>& v) {
   if ( !v.empty() ) {
     out << '[';
     std::copy (v.begin(), v.end(), std::ostream_iterator<T>(out, ", "));
@@ -128,18 +128,10 @@ class IC{
 
 					}
 					else {
-
 					}
-					
-
 				}
-
-
-
 			}
-			
 			return m_graph.getAllInfluencedNodes().size();
-
 		}
 
 
@@ -263,7 +255,7 @@ vector<int> run(Xgraph &xg, int k, double epsilon, string model ){
 
 double expectedSpread(Xgraph &xg, int mc_iter, int budget) {
 	//cout <<seeds;
-	vector <int> seeds = run(xg, 1, 0.1, "IC");
+	vector <int> seeds = run(xg, budget, 0.1, "IC");
 	IC ic(xg);
 	int all_sp = 0;
 	for (int i=0; i<mc_iter;i++) {
@@ -272,18 +264,25 @@ double expectedSpread(Xgraph &xg, int mc_iter, int budget) {
 		all_sp += spread;
 		xg.ResetAttributes();
 	}
+	cout << "Seeds - " << seeds <<endl;
+	cout << "Expected spread - " << double(all_sp)/mc_iter <<endl;
+
 
 	return double(all_sp)/mc_iter;
 }
 
 int main()
 {
-	int m_n = 15229;
-	int m_m = 62752;
 	srand((unsigned)time(0));
 	
 	cout << "\nStarted\n" << endl;
-	Xgraph xg = readData("nethept/graph_ic.inf", m_n, m_m);
+	// int m_n = 15229;
+	// int m_m = 62752;
+	// Xgraph xg = readData("nethept/graph_ic.inf", m_n, m_m);
+
+	int m_n = 500;
+	int m_m = 2509;
+	Xgraph xg = readData("nethept/synth_500.txt", m_n, m_m);
 
 	// play area
 	//print_graph(xg);
@@ -298,8 +297,9 @@ int main()
 	//	spreads.push_back(a);
 	//}
 
-	double expSp = expectedSpread(xg, 100);//spreads);
-	cout <<expSp <<endl;
+	int mc_iter = 100;
+	int budget = 10;
+	double expSp = expectedSpread(xg, mc_iter, budget);//spreads);
 
 	// class MAB functions
 	//MAB mab(20,20);
