@@ -60,9 +60,9 @@ Xgraph readData(string m_filename, int m_n, int m_m){
         int c=fscanf(fin, "%d%d%lf", &a, &b, &p);
         //cout << a << " " << b << " " << p << "\n";
 
-        double random = double(rand())/ RAND_MAX;
-		xg.AddEdge(a,b,p,random);
-        //graph.AddEdge(a,b,p,random)
+        //double random = double(rand())/ RAND_MAX;
+		//xg.AddEdge(a,b,p,random);
+		xg.AddEdge(a,b,p,0);
     }
     if(readCnt !=m_m)
         cout << "m not equal to the number of edges in file " + m_filename;
@@ -81,14 +81,25 @@ void print_graph(Xgraph xg) {
 	vector<pair<int, int> > edges = xg.Edges();
 	vector <double> probs = xg.Probabilities();
 	vector <double> estimates = xg.Estimates();
+	vector <int> shTriggeredCounts = xg.sharanTriggeredCounts();
+	vector <int> shActivatedCounts = xg.sharanActivatedCounts();
+
+	int total_cnt1 =0;
+	int total_cnt2 =0;
+
 	for (int i=0; i<xg.NumberOfEdges();i++){
 		pair <int, int> e = edges[i];
 		double prob = probs[i];
 		double est = estimates[i];
-		cout << e.first << "->" << e.second << " " << prob << " " << est << endl;
+		int cnt1 = shTriggeredCounts[i];
+		int cnt2 = shActivatedCounts[i];
+		total_cnt1 += cnt1;
+		total_cnt2 += cnt2;
+		//cout << e.first << "->" << e.second << " " << prob << " " << est << endl;
+		cout << e.first << "->" << e.second << " " << prob << " " << est << " " << cnt1 <<" " << cnt2 << endl;
 	} 
+	cout << "Triggered - " << total_cnt1 << " Actiavted - " << total_cnt2;
 	cout << endl;
-
 }
 
 vector<int> runProbabilities(Xgraph &xg, int k, double epsilon, string model){
@@ -207,7 +218,7 @@ class IC{
 				//cout << "Current node " << currentNode << " timestep " << timestep <<endl;
 				for (auto & node : m_graph.Successors(currentNode)){
 					//cout << node <<endl;
-					
+					m_graph.triggerEdge(currentNode,node);
 					if (!m_graph.IsInfluenced(node)){
 						double dot;
 						if (isEnvironment){
@@ -222,6 +233,8 @@ class IC{
 						if (dot > random) {
 							activeNodes.push(make_pair(node,timestep+1));
 							m_graph.SetIsInfluenced(node, currentNode, timestep+1);
+							m_graph.activateEdge(currentNode,node);
+
 						}
 
 					}
@@ -300,10 +313,10 @@ class MAB {
 			return seeds;
 		}
 
-		void runMAB(int feedback) {
+		void runMAB(int feedback, int iterations) {
 			if (feedback==1){
 				//simple sharan's edge level feedback
-				print_graph(m_ic.m_graph);
+				sharanEdgeFeedback(iterations);
 			}
 			else if (feedback==2) {
 				// expectation min edge feedback
@@ -317,6 +330,34 @@ class MAB {
 				cout << "Feedback not supported";
 			}
 
+		}
+
+		void sharanEdgeFeedback(int iterations){
+			int environment = 1;
+			for (int i=0;i<iterations;i++){
+				// Do bandit round
+				vector<int> seeds = explore();
+				int spread = m_ic.diffusion(seeds, environment);
+				//cout << "Spread - " << spread;
+				m_ic.m_graph.ResetAttributes();
+				
+				// update graph
+				vector<pair<int,int>> edges = m_ic.m_graph.Edges();
+				vector <int> sh_trig = m_ic.m_graph.sharanTriggeredCounts();
+				vector <int> sh_act = m_ic.m_graph.sharanActivatedCounts();
+				for (int j =0;j<m_ic.m_graph.NumberOfEdges();j++){
+					pair<int,int> edge = edges[j];
+					int node1 = edge.first;
+					int node2 = edge.second;
+					if (sh_trig[j]!=0){
+						double new_est = (double)sh_act[j]/ sh_trig[j];
+						m_ic.m_graph.UpdateEstimate(node1, node2, new_est);						
+					}
+				}
+				
+
+			}
+			print_graph(m_ic.m_graph);
 		}
 
 };
@@ -377,6 +418,7 @@ int main()
 	IC ic(xg);
 	MAB mab(10, ic);
 	int feedback = 1;
+	int iterations = 100;
 	// int environment = 1; // true probablities
 	// vector <int> explore_seeds = mab.explore();
 	// vector <int> exploit_seeds = mab.exploit(environment);
@@ -384,7 +426,7 @@ int main()
 	// cout << explore_seeds <<endl;
 	// cout << exploit_seeds <<endl;
 	// cout << eg_seeds <<endl;
-	mab.runMAB(feedback);
+	mab.runMAB(feedback, iterations);
 
 	// double ex_spread = mab.expectedSpread(exploit_seeds, mc_iter, environment);
 	// cout << "Expected Spread - " << ex_spread <<endl;

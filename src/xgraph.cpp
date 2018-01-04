@@ -31,12 +31,16 @@ struct EdgeInfo{
 		toNode = toId;
 		estimate = est;
 		probability = prob;
+		sharanTriggered = 0;
+		sharanActivated = 0;
 	}
 	bool isLive;
 	int fromNode;
 	int toNode;
 	double estimate;
 	double probability;
+	int sharanTriggered;
+	int sharanActivated;
 };
 
 
@@ -102,6 +106,22 @@ class Xgraph
 				probs.push_back (i.estimate);
 			}
 			return probs;
+		}
+
+		vector <int> sharanActivatedCounts() {
+			vector<int> counts;
+			for(auto &i : m_edgeInfo) {
+				counts.push_back (i.sharanActivated);
+			}
+			return counts;
+		}
+
+		vector <int> sharanTriggeredCounts() {
+			vector<int> counts;
+			for(auto &i : m_edgeInfo) {
+				counts.push_back (i.sharanTriggered);
+			}
+			return counts;
 		}
 
 		void UpdateProbability(int fromNode, int toNode, double probability=0.0){
@@ -220,7 +240,15 @@ class Xgraph
 
 		};
 
-		
+		void triggerEdge(int fromNode, int toNode) {
+			int index = getEdgeIndex(fromNode, toNode);
+			m_edgeInfo[index].sharanTriggered++;
+		}
+
+		void activateEdge(int fromNode, int toNode) {
+			int index = getEdgeIndex(fromNode, toNode);
+			m_edgeInfo[index].sharanActivated++;
+		}
 
 		int getEdgeIndex(int fromNode, int toNode){
 			assert(HasNode(fromNode));
