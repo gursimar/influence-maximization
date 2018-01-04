@@ -72,15 +72,20 @@ Xgraph readData(string m_filename, int m_n, int m_m){
 
 void print_graph(Xgraph xg) {
 	vector<int> nodes = xg.Nodes();
+	cout << "Nodes -> ";
 	for (auto n : nodes){
 		cout << n <<" ";
 	} 
-	cout << endl;
+	cout << endl << "Edges" <<endl;
 
-	vector<pair<int, int> > edges;
-	edges = xg.Edges();
-	for (auto e : edges){
-		cout << e.first <<"->" << e.second <<" ";
+	vector<pair<int, int> > edges = xg.Edges();
+	vector <double> probs = xg.Probabilities();
+	vector <double> estimates = xg.Estimates();
+	for (int i=0; i<xg.NumberOfEdges();i++){
+		pair <int, int> e = edges[i];
+		double prob = probs[i];
+		double est = estimates[i];
+		cout << e.first << "->" << e.second << " " << prob << " " << est << endl;
 	} 
 	cout << endl;
 
@@ -280,13 +285,36 @@ class MAB {
 			return seeds;
 		}
 
-		void epsilonGreedy() {
+		vector<int> epsilonGreedy() {
+			vector <int> seeds;
+			int environment = 0; // WE ALWAYS RUN EP_GREEDY ON ESTIMATES
 			double random = double(rand())/ RAND_MAX;
 			if (m_epsilon > random) {
-				//explore();
+				seeds = explore();
 			}
 			else {
 				//exploit();
+				seeds = exploit(environment);
+			}
+
+			return seeds;
+		}
+
+		void runMAB(int feedback) {
+			if (feedback==1){
+				//simple sharan's edge level feedback
+				print_graph(m_ic.m_graph);
+			}
+			else if (feedback==2) {
+				// expectation min edge feedback
+
+			}
+			else if (feedback ==3) {
+				// expectation min node feedback
+
+			}
+			else {
+				cout << "Feedback not supported";
 			}
 
 		}
@@ -348,14 +376,18 @@ int main()
 	// class MAB functions
 	IC ic(xg);
 	MAB mab(10, ic);
-	int environment = 1; // true probablities
-	vector <int> explore_seeds = mab.explore();
-	vector <int> exploit_seeds = mab.exploit(environment);
-	cout << explore_seeds <<endl;
-	cout << exploit_seeds <<endl;
+	int feedback = 1;
+	// int environment = 1; // true probablities
+	// vector <int> explore_seeds = mab.explore();
+	// vector <int> exploit_seeds = mab.exploit(environment);
+	// vector <int> eg_seeds = mab.epsilonGreedy();
+	// cout << explore_seeds <<endl;
+	// cout << exploit_seeds <<endl;
+	// cout << eg_seeds <<endl;
+	mab.runMAB(feedback);
 
-	double ex_spread = mab.expectedSpread(exploit_seeds, mc_iter, environment);
-	cout << "Expected Spread - " << ex_spread <<endl;
+	// double ex_spread = mab.expectedSpread(exploit_seeds, mc_iter, environment);
+	// cout << "Expected Spread - " << ex_spread <<endl;
 
 	cout << "\nEnded" << endl;
 
