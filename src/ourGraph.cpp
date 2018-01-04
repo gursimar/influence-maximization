@@ -46,6 +46,99 @@ std::ostream& operator<<(std::ostream& out, const std::set<T>& v) {
 }
 
 
+Xgraph readData(string m_filename, int m_n, int m_m){
+	//cout << m_filename;
+	Xgraph xg;
+    FILE * fin= fopen((m_filename).c_str(), "r");
+
+    //cout << fin;
+    int readCnt=0;
+    for(int i=0; i<m_m; i++){
+        readCnt ++;
+        int a, b;
+        double p;
+        int c=fscanf(fin, "%d%d%lf", &a, &b, &p);
+        //cout << a << " " << b << " " << p << "\n";
+
+        double random = double(rand())/ RAND_MAX;
+		xg.AddEdge(a,b,p,random);
+        //graph.AddEdge(a,b,p,random)
+    }
+    if(readCnt !=m_m)
+        cout << "m not equal to the number of edges in file " + m_filename;
+    fclose(fin);
+    return xg;
+}
+
+void print_graph(Xgraph xg) {
+	vector<int> nodes = xg.Nodes();
+	for (auto n : nodes){
+		cout << n <<" ";
+	} 
+	cout << endl;
+
+	vector<pair<int, int> > edges;
+	edges = xg.Edges();
+	for (auto e : edges){
+		cout << e.first <<"->" << e.second <<" ";
+	} 
+	cout << endl;
+
+}
+
+vector<int> runProbabilities(Xgraph &xg, int k, double epsilon, string model){
+    cout << " k:" << k << " epsilon:"<< epsilon <<   " model:" << model << endl;
+	TimGraph m("","",xg.Edges(),xg.Probabilities(),xg.NumberOfNodes());	
+	
+    m.k=k;
+    if(model=="IC")
+        m.setInfuModel(InfGraph::IC);
+    else if(model=="LT")
+        m.setInfuModel(InfGraph::LT);
+    else
+        ASSERT(false);
+
+    cout<<"Finish Read Graph, Start Influecne Maximization"<<endl;
+    m.EstimateOPT(epsilon);
+    cout<<"Time used: " << Timer::timeUsed[100]/TIMES_PER_SEC << "s" <<endl;
+
+    //cout<<"Selected k SeedSet: ";
+    //for(auto item:m.seedSet)
+    //    cout<< item << " ";
+    //cout<<endl;
+    //cout<<"Estimated Influence: " << m.InfluenceHyperGraph() << endl;
+    Counter::show();
+
+    return m.seedSet;
+}
+
+vector<int> runEstimates(Xgraph &xg, int k, double epsilon, string model){
+    cout << " k:" << k << " epsilon:"<< epsilon <<   " model:" << model << endl;
+	TimGraph m("","",xg.Edges(),xg.Estimates(),xg.NumberOfNodes());	
+	
+    m.k=k;
+    if(model=="IC")
+        m.setInfuModel(InfGraph::IC);
+    else if(model=="LT")
+        m.setInfuModel(InfGraph::LT);
+    else
+        ASSERT(false);
+
+    cout<<"Finish Read Graph, Start Influence Maximization"<<endl;
+    m.EstimateOPT(epsilon);
+    cout<<"Time used: " << Timer::timeUsed[100]/TIMES_PER_SEC << "s" <<endl;
+
+    //cout<<"Selected k SeedSet: ";
+    //for(auto item:m.seedSet)
+    //    cout<< item << " ";
+    //cout<<endl;
+    //cout<<"Estimated Influence: " << m.InfluenceHyperGraph() << endl;
+    Counter::show();
+
+    return m.seedSet;
+}
+
+
 class SWIFF_KNIFE {
 public:
 	static vector<int> generateRandNo(int n, int k, int flag) {
@@ -140,126 +233,74 @@ class IC{
 class MAB {
 	public:
 		double m_epsilon = 0.5;
+		double m_eptim = 0.1;
 		int m_budget;
-		int m_graph;
-		MAB(int budget, int graph) {
+		IC& m_ic;
+		MAB(int budget, IC &ic):m_ic(ic) {
 			m_budget = budget;
-			m_graph = graph;
 		}
 
-		void explore(){
-			//generate random seeds
-			vector<int> seeds = SWIFF_KNIFE::generateRandNo(100,10,1);
-			//graph.Nodes and pick seeds
-
-			/*
-			for(vector<int>::iterator it = seeds.begin(); it != seeds.end(); ++it) {
-				vector<int> all_nodes = m_graph.Nodes();
-				//cout << all_nodes.size()<<endl;
-				int seed_node = all_nodes[*it];
-				//cout <<seed_node<<endl;
-
-				// put 
-				activeNodes.push(make_pair(seed_node,0));
-				//self.graph.node[seed]['isInfluenced'] = True
-				//self.graph.node[seed]['influencedBy'] = -1
-				//self.graph.node[seed]['influenceTimestep'] = 0
+		double expectedSpread(vector <int> seeds, int mc_iter, int environment) {
+			int all_sp = 0;
+			for (int i=0; i<mc_iter;i++) {
+				int spread = m_ic.diffusion(seeds, environment);
+				//cout <<spread <<endl;
+				all_sp += spread;
+				m_ic.m_graph.ResetAttributes();
 			}
-			*/
-			
-
-			//cout << seeds;
+			//cout << "Seeds - " << seeds <<endl;
+			//cout << "Expected spread - " << double(all_sp)/mc_iter <<endl;
+			return double(all_sp)/mc_iter;
 		}
 
-		void exploit(){
-			// seeds = TimGraph m(dataset, graph_file);
+		vector <int> explore(){
+			//generate random seeds
+			int noOfNodes = m_ic.m_graph.NumberOfNodes();
+			vector<int> seeds_index = SWIFF_KNIFE::generateRandNo(noOfNodes,m_budget,1);
+			vector<int> all_nodes = m_ic.m_graph.Nodes();
+
+			vector<int> seeds;
+
+			for(auto index: seeds_index) {
+				//cout << index <<endl;
+				seeds.push_back(all_nodes[index]);
+			}
+			return seeds;
+		}
+
+		vector<int> exploit(int environment){
+			vector <int> seeds;
+			if (environment==1) {
+				seeds = runProbabilities(m_ic.m_graph, m_budget, m_eptim, "IC");	
+			}
+			else {
+				seeds = runEstimates(m_ic.m_graph, m_budget, m_eptim, "IC");		
+			}
+			
+			return seeds;
 		}
 
 		void epsilonGreedy() {
 			double random = double(rand())/ RAND_MAX;
 			if (m_epsilon > random) {
-				explore();
+				//explore();
 			}
 			else {
-				exploit();
+				//exploit();
 			}
 
 		}
 
 };
 
-Xgraph readData(string m_filename, int m_n, int m_m){
-	//cout << m_filename;
-	Xgraph xg;
-    FILE * fin= fopen((m_filename).c_str(), "r");
-
-    //cout << fin;
-    int readCnt=0;
-    for(int i=0; i<m_m; i++){
-        readCnt ++;
-        int a, b;
-        double p;
-        int c=fscanf(fin, "%d%d%lf", &a, &b, &p);
-        //cout << a << " " << b << " " << p << "\n";
-
-        double random = double(rand())/ RAND_MAX;
-		xg.AddEdge(a,b,p,random);
-        //graph.AddEdge(a,b,p,random)
-    }
-    if(readCnt !=m_m)
-        cout << "m not equal to the number of edges in file " + m_filename;
-    fclose(fin);
-    return xg;
-}
-
-void print_graph(Xgraph xg) {
-	vector<int> nodes = xg.Nodes();
-	for (auto n : nodes){
-		cout << n <<" ";
-	} 
-	cout << endl;
-
-	vector<pair<int, int> > edges;
-	edges = xg.Edges();
-	for (auto e : edges){
-		cout << e.first <<"->" << e.second <<" ";
-	} 
-	cout << endl;
-
-}
-
-vector<int> run(Xgraph &xg, int k, double epsilon, string model ){
-    cout << " k:" << k << " epsilon:"<< epsilon <<   " model:" << model << endl;
-	TimGraph m("","",xg.Edges(),xg.Probabilities(),xg.NumberOfNodes());
-    m.k=k;
-    if(model=="IC")
-        m.setInfuModel(InfGraph::IC);
-    else if(model=="LT")
-        m.setInfuModel(InfGraph::LT);
-    else
-        ASSERT(false);
-
-    cout<<"Finish Read Graph, Start Influecne Maximization"<<endl;
-    m.EstimateOPT(epsilon);
-    cout<<"Time used: " << Timer::timeUsed[100]/TIMES_PER_SEC << "s" <<endl;
-
-    //cout<<"Selected k SeedSet: ";
-    //for(auto item:m.seedSet)
-    //    cout<< item << " ";
-    //cout<<endl;
-    //cout<<"Estimated Influence: " << m.InfluenceHyperGraph() << endl;
-    Counter::show();
-
-    return m.seedSet;
-}
-
-double expectedSpread(Xgraph &xg, int mc_iter, int budget) {
+double expectedSpreadGraph(Xgraph &xg, int mc_iter, int budget, int environment, double epsilon) {
 	//cout <<seeds;
-	vector <int> seeds = run(xg, budget, 0.1, "IC");
+	vector <int> seeds = runProbabilities(xg, budget, epsilon, "IC");
+	//vector <int> seeds = runEstimates(xg, budget, epsilon, "IC");
 	IC ic(xg);
 	int all_sp = 0;
 	for (int i=0; i<mc_iter;i++) {
-		int spread = ic.diffusion(seeds, 1);
+		int spread = ic.diffusion(seeds, environment);
 		//cout <<spread <<endl;
 		all_sp += spread;
 		xg.ResetAttributes();
@@ -274,6 +315,7 @@ double expectedSpread(Xgraph &xg, int mc_iter, int budget) {
 int main()
 {
 	srand((unsigned)time(0));
+	double epsilon = 0.1;
 	
 	cout << "\nStarted\n" << endl;
 	// int m_n = 15229;
@@ -290,21 +332,30 @@ int main()
 	//vector <int> seeds = run(xg, 50, 0.1, "IC");
 	//cout <<seeds;
 	
-	//IC ic(xg);
 
 	//vector<int> simar =  SWIFF_KNIFE::range(0,9);
 	//int a = ic.diffusion(seeds, 1);
 	//	spreads.push_back(a);
 	//}
 
-	int mc_iter = 100;
-	int budget = 10;
-	double expSp = expectedSpread(xg, mc_iter, budget);//spreads);
+	// COMPUTE EXPECTED SPREAD
+	 int mc_iter = 100;
+	 // int budget = 10;
+	 // int environment = 1;
+	 // double expSp = expectedSpreadGraph(xg, mc_iter, budget, environment, epsilon);//spreads);
+	 // exit(0);
 
 	// class MAB functions
-	//MAB mab(20,20);
-	//mab.explore();
-	
+	IC ic(xg);
+	MAB mab(10, ic);
+	int environment = 1; // true probablities
+	vector <int> explore_seeds = mab.explore();
+	vector <int> exploit_seeds = mab.exploit(environment);
+	cout << explore_seeds <<endl;
+	cout << exploit_seeds <<endl;
+
+	double ex_spread = mab.expectedSpread(exploit_seeds, mc_iter, environment);
+	cout << "Expected Spread - " << ex_spread <<endl;
 
 	cout << "\nEnded" << endl;
 
