@@ -215,6 +215,7 @@ class IC{
 				activeNodes.pop();
 				int currentNode = curr.first;
 				int timestep = curr.second;
+				m_graph.SetIsInfluencedNode(currentNode, timestep); // add seeds to influenced
 				//cout << "Current node " << currentNode << " timestep " << timestep <<endl;
 				for (auto & node : m_graph.Successors(currentNode)){
 					//cout << node <<endl;
@@ -233,9 +234,8 @@ class IC{
 						double random = double(rand())/ RAND_MAX;
 						if (dot > random) {
 							activeNodes.push(make_pair(node,timestep+1));
+							m_graph.activateEdge(currentNode,node); // this is for sharan_edge
 							m_graph.SetIsInfluenced(node, currentNode, timestep+1);
-							m_graph.activateEdge(currentNode,node);
-
 						}
 
 					}
@@ -321,6 +321,7 @@ class MAB {
 			}
 			else if (feedback==2) {
 				// expectation min edge feedback
+				SidNodeLevel(iterations);
 
 			}
 			else if (feedback ==3) {
@@ -332,6 +333,58 @@ class MAB {
 			}
 		}
 
+		void SidNodeLevel(int iterations) {
+			int environment = 1;
+			for (int i=0;i<iterations;i++){
+				cout << "L1 Error is - " << computeL1() << endl;
+				// Do bandit round
+				vector<int> seeds = explore();
+				int spread = m_ic.diffusion(seeds, environment);
+				cout << "Spread - " << spread <<endl;
+
+				// UPDATE STEP
+
+				// for each activated node, compute pr of activation
+				set<int> allInfNodes = m_ic.m_graph.getAllInfluencedNodes();
+				for (auto infNode: allInfNodes ) {
+					int infNodeInd = m_ic.m_graph.getNodeIndex(infNode);
+					int timeNode = m_ic.m_graph.Timestep(infNode);
+					cout << m_ic.m_graph.IsInfluenced(infNode) <<" " << timeNode <<endl;
+					vector<int> preds = m_ic.m_graph.Predecessors(infNode);
+					for (auto pred: preds){
+
+					}
+				}
+
+				exit(0);
+
+
+
+				m_ic.m_graph.ResetAttributes();
+
+
+
+				
+				// update graph
+				// vector<pair<int,int>> edges = m_ic.m_graph.Edges();
+				// vector <int> sh_trig = m_ic.m_graph.sharanTriggeredCounts();
+				// vector <int> sh_act = m_ic.m_graph.sharanActivatedCounts();
+				// for (int j =0;j<m_ic.m_graph.NumberOfEdges();j++){
+				// 	pair<int,int> edge = edges[j];
+				// 	int node1 = edge.first;
+				// 	int node2 = edge.second;
+				// 	if (sh_trig[j]!=0){
+				// 		double new_est = (double)sh_act[j]/ sh_trig[j];
+				// 		m_ic.m_graph.UpdateEstimate(node1, node2, new_est);						
+				// 	}
+				// }
+				
+
+			}
+			print_graph(m_ic.m_graph);
+
+		}
+
 		double computeL1() {
 			vector <double> probs = m_ic.m_graph.Probabilities();
 			vector <double> estimates = m_ic.m_graph.Estimates();
@@ -341,7 +394,6 @@ class MAB {
 				total_diff += diff;
 			}
 			return (double)total_diff/m_ic.m_graph.NumberOfEdges();
-
 		}
 
 		void sharanEdgeFeedback(int iterations){
@@ -394,7 +446,7 @@ double expectedSpreadGraph(Xgraph &xg, int mc_iter, int budget, int environment,
 	return double(all_sp)/mc_iter;
 }
 
-int main()
+int sharanEdgeLevelExp()
 {
 	srand((unsigned)time(0));
 	double epsilon = 0.1;
@@ -440,6 +492,64 @@ int main()
 	// vector <int> eg_seeds = mab.epsilonGreedy();
 	// cout << eg_seeds <<endl;
 
+	 cout << mab.exploit(0) <<endl;
+	 mab.runMAB(feedback, iterations);
+	 cout << mab.exploit(0) <<endl;
+
+	// double ex_spread = mab.expectedSpread(exploit_seeds, mc_iter, environment);
+	// cout << "Expected Spread - " << ex_spread <<endl;
+
+	cout << "\nEnded" << endl;
+  return 0;
+}
+
+
+int main()
+{
+	srand((unsigned)time(0));
+	double epsilon = 0.1;
+	
+	cout << "\nStarted\n" << endl;
+	// int m_n = 15229;
+	// int m_m = 62752;
+	// Xgraph xg = readData("nethept/graph_ic.inf", m_n, m_m);
+
+	int m_n = 500;
+	int m_m = 2509;
+	Xgraph xg = readData("nethept/synth_500.txt", m_n, m_m);
+
+	// play area
+	//print_graph(xg);
+	//cout << xg.Probabilities();
+	//vector <int> seeds = run(xg, 50, 0.1, "IC");
+	//cout <<seeds;
+	
+
+	//vector<int> simar =  SWIFF_KNIFE::range(0,9);
+	//int a = ic.diffusion(seeds, 1);
+	//	spreads.push_back(a);
+	//}
+
+	// COMPUTE EXPECTED SPREAD
+	 int mc_iter = 100;
+	 int budget = 10;
+	 int environment = 1;
+	 double expSp = expectedSpreadGraph(xg, mc_iter, budget, environment, epsilon);//spreads);
+	 cout << "Expected spead of graph - "<< expSp;
+	 exit(0);
+
+	// class MAB functions
+	IC ic(xg);
+	MAB mab(10, ic);
+	int feedback = 2;
+	int iterations = 400;
+	 // int environment = 1; // true probablities
+	// vector <int> explore_seeds = mab.explore();
+	// cout << explore_seeds <<endl;
+	 // vector <int> exploit_seeds = mab.exploit(environment);
+	 // cout << exploit_seeds <<endl;
+	// vector <int> eg_seeds = mab.epsilonGreedy();
+	// cout << eg_seeds <<endl;
 
 	 cout << mab.exploit(0) <<endl;
 	 mab.runMAB(feedback, iterations);
@@ -449,9 +559,5 @@ int main()
 	// cout << "Expected Spread - " << ex_spread <<endl;
 
 	cout << "\nEnded" << endl;
-
-
-
   return 0;
 }
-

@@ -237,8 +237,18 @@ class Xgraph
 
 			m_influenceNodes.insert(node);
 			m_influenceNodes.insert(influencer);
-
 		};
+
+		void SetIsInfluencedNode(int node, int timestep){ 
+			int index = getNodeIndex(node);
+			m_nodeInfo[index].isInfluenced = true;
+			m_nodeInfo[index].timestep = timestep;
+			//m_nodeInfo[index].influencedBy = influencer; NO ONE INFLUENCED IT
+			//int edgeIndex = getEdgeIndex(influencer, node); there was no edge
+			//m_edgeInfo[edgeIndex].isLive = true;
+
+			m_influenceNodes.insert(node);
+		}
 
 		void triggerEdge(int fromNode, int toNode) {
 			int index = getEdgeIndex(fromNode, toNode);
