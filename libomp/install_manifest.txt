@@ -1,0 +1,2 @@
+/Users/simar/libomp/openmp/lib/libomp.dylib
+/Users/simar/libomp/openmp/include/omp.h

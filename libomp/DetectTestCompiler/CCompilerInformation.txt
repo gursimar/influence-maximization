@@ -1,0 +1,1 @@
+/Library/Developer/CommandLineTools/usr/bin/cc;Clang;9.0.0.9000039;-fopenmp
