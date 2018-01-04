@@ -168,7 +168,7 @@ public:
 			}
 		}
 		else {
-			vector<int> nos = SWIFF_KNIFE::range(1,n);
+			vector<int> nos = SWIFF_KNIFE::range(0,n-1);
 			for (int i=0;i<k; i++){
 				int index = (rand()%n);
 				v.push_back(nos[index]);
@@ -220,6 +220,7 @@ class IC{
 					//cout << node <<endl;
 					m_graph.triggerEdge(currentNode,node);
 					if (!m_graph.IsInfluenced(node)){
+						//m_graph.triggerEdge(currentNode,node); NOT SURE WHERE TO PUT THIS
 						double dot;
 						if (isEnvironment){
 							dot = m_graph.Probability(currentNode, node);
@@ -329,12 +330,24 @@ class MAB {
 			else {
 				cout << "Feedback not supported";
 			}
+		}
+
+		double computeL1() {
+			vector <double> probs = m_ic.m_graph.Probabilities();
+			vector <double> estimates = m_ic.m_graph.Estimates();
+			double total_diff = 0;
+			for (int i =0;i<m_ic.m_graph.NumberOfEdges();i++){
+				double diff = sqrt((probs[i] - estimates[i]) * (probs[i] - estimates[i]));
+				total_diff += diff;
+			}
+			return (double)total_diff/m_ic.m_graph.NumberOfEdges();
 
 		}
 
 		void sharanEdgeFeedback(int iterations){
 			int environment = 1;
 			for (int i=0;i<iterations;i++){
+				cout << "L1 Error is - " << computeL1() << endl;
 				// Do bandit round
 				vector<int> seeds = explore();
 				int spread = m_ic.diffusion(seeds, environment);
@@ -418,15 +431,19 @@ int main()
 	IC ic(xg);
 	MAB mab(10, ic);
 	int feedback = 1;
-	int iterations = 100;
-	// int environment = 1; // true probablities
+	int iterations = 400;
+	 // int environment = 1; // true probablities
 	// vector <int> explore_seeds = mab.explore();
-	// vector <int> exploit_seeds = mab.exploit(environment);
-	// vector <int> eg_seeds = mab.epsilonGreedy();
 	// cout << explore_seeds <<endl;
-	// cout << exploit_seeds <<endl;
+	 // vector <int> exploit_seeds = mab.exploit(environment);
+	 // cout << exploit_seeds <<endl;
+	// vector <int> eg_seeds = mab.epsilonGreedy();
 	// cout << eg_seeds <<endl;
-	mab.runMAB(feedback, iterations);
+
+
+	 cout << mab.exploit(0) <<endl;
+	 mab.runMAB(feedback, iterations);
+	 cout << mab.exploit(0) <<endl;
 
 	// double ex_spread = mab.expectedSpread(exploit_seeds, mc_iter, environment);
 	// cout << "Expected Spread - " << ex_spread <<endl;
