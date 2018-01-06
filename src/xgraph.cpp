@@ -229,6 +229,13 @@ class Xgraph
 			return m_nodeInfo[index].isInfluenced;
 		};
 
+		bool isInfluencedEdge(int fromNode, int toNode) {
+			int index = getNodeIndex(toNode);
+			assert(m_nodeInfo[index].isInfluenced = true);			
+			return m_nodeInfo[index].influencedBy == fromNode;
+
+		}
+
 		void SetIsInfluenced(int node, int influencer, int timestep){
 			int index = getNodeIndex(node);
 			m_nodeInfo[index].isInfluenced = true;
