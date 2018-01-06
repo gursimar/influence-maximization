@@ -12,7 +12,7 @@ using namespace std;
 struct NodeInfo{
 	NodeInfo(int id){
 		isInfluenced = false;
-		timestep = 0;
+		timestep = -1;
 		nodeId = id;
 		influencedBy = -1;
 	}
@@ -33,6 +33,7 @@ struct EdgeInfo{
 		probability = prob;
 		sharanTriggered = 0;
 		sharanActivated = 0;
+		eta = 1;
 	}
 	bool isLive;
 	int fromNode;
@@ -41,6 +42,7 @@ struct EdgeInfo{
 	double probability;
 	int sharanTriggered;
 	int sharanActivated;
+	int eta;
 };
 
 
@@ -55,7 +57,7 @@ class Xgraph
 			m_influenceNodes.clear();
 			for(auto & iter : m_nodeInfo){
 				iter.isInfluenced = false;
-				iter.timestep = 0;
+				iter.timestep = -1;
 				iter.influencedBy = -1;
 			}
 
@@ -253,6 +255,16 @@ class Xgraph
 		void triggerEdge(int fromNode, int toNode) {
 			int index = getEdgeIndex(fromNode, toNode);
 			m_edgeInfo[index].sharanTriggered++;
+		}
+
+		void triggerETA(int fromNode, int toNode) {
+			int index = getEdgeIndex(fromNode, toNode);
+			m_edgeInfo[index].eta++;
+		}
+
+		int getETA(int fromNode, int toNode) {
+			int index = getEdgeIndex(fromNode, toNode);
+			return m_edgeInfo[index].eta;
 		}
 
 		void activateEdge(int fromNode, int toNode) {

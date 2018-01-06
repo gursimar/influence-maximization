@@ -60,9 +60,9 @@ Xgraph readData(string m_filename, int m_n, int m_m){
         int c=fscanf(fin, "%d%d%lf", &a, &b, &p);
         //cout << a << " " << b << " " << p << "\n";
 
-        //double random = double(rand())/ RAND_MAX;
-		//xg.AddEdge(a,b,p,random);
-		xg.AddEdge(a,b,p,0);
+        double random = double(rand())/ RAND_MAX;
+		xg.AddEdge(a,b,p,random);
+		//xg.AddEdge(a,b,p,0);
     }
     if(readCnt !=m_m)
         cout << "m not equal to the number of edges in file " + m_filename;
@@ -100,6 +100,26 @@ void print_graph(Xgraph xg) {
 	} 
 	cout << "Triggered - " << total_cnt1 << " Actiavted - " << total_cnt2;
 	cout << endl;
+}
+
+void print_nodes(Xgraph xg, int onlyInf) {
+	if (onlyInf == 0) {
+		vector<int> nodes = xg.Nodes();
+		cout << endl << "Nodes -> ";
+		cout << endl << "NodeID IsInfluenced InfluencedBy Timestep" <<endl;
+		for (auto n : nodes){
+			cout << n <<" " << xg.IsInfluenced(n) << " " << xg.InfluencedBy(n) << " " << xg.Timestep(n) << " " <<endl;
+		} 
+	}
+	else {
+		set<int> nodes = xg.getAllInfluencedNodes();
+		cout << endl<< "Influenced Nodes -> ";
+		cout << endl << "NodeID IsInfluenced InfluencedBy Timestep" <<endl;
+		for (auto n : nodes){
+			cout << n <<" " << xg.IsInfluenced(n) << " " << xg.InfluencedBy(n) << " " << xg.Timestep(n) << " " <<endl;
+		}
+
+	}
 }
 
 vector<int> runProbabilities(Xgraph &xg, int k, double epsilon, string model){
@@ -205,6 +225,7 @@ class IC{
 
 				// put 
 				activeNodes.push(make_pair(*seed,0));
+				m_graph.SetIsInfluencedNode(*seed, 0); // add seeds to influenced
 				//self.graph.node[seed]['isInfluenced'] = True
 				//self.graph.node[seed]['influencedBy'] = -1
 				//self.graph.node[seed]['influenceTimestep'] = 0
@@ -215,6 +236,8 @@ class IC{
 				activeNodes.pop();
 				int currentNode = curr.first;
 				int timestep = curr.second;
+				//cout <<timestep;
+				//exit(0);
 				m_graph.SetIsInfluencedNode(currentNode, timestep); // add seeds to influenced
 				//cout << "Current node " << currentNode << " timestep " << timestep <<endl;
 				for (auto & node : m_graph.Successors(currentNode)){
@@ -225,13 +248,16 @@ class IC{
 						double dot;
 						if (isEnvironment){
 							dot = m_graph.Probability(currentNode, node);
+							//cout <<  "p";
 						}
 						else {
 							dot = m_graph.Estimate(currentNode, node);
+							//cout <<  "e";
 						}
 
 						//cout << dot <<endl;
 						double random = double(rand())/ RAND_MAX;
+						//cout << random <<endl;
 						if (dot > random) {
 							activeNodes.push(make_pair(node,timestep+1));
 							m_graph.activateEdge(currentNode,node); // this is for sharan_edge
@@ -326,10 +352,40 @@ class MAB {
 			}
 			else if (feedback ==3) {
 				// expectation min node feedback
+				SidEdgeLevel(iterations);
 
 			}
 			else {
 				cout << "Feedback not supported";
+			}
+		}
+
+		void SidEdgeLevel(int iterations){
+			int environment = 1;
+			for (int i=0;i<iterations;i++){
+				cout << "L1 Error is - " << computeL1() << endl;
+				// Do bandit round
+				vector<int> seeds = explore();
+				int spread = m_ic.diffusion(seeds, environment);
+				cout << "Explore seeds " << seeds <<endl;
+				cout << "Spread - " << spread <<endl;
+				//exit(0);
+
+				// UPDATE STEP
+
+				// for each activated node, compute pr of activation
+				set<int> allInfNodes = m_ic.m_graph.getAllInfluencedNodes();
+				for (auto infNode: allInfNodes ) {
+					int infNodeInd = m_ic.m_graph.getNodeIndex(infNode);
+					int timeNode = m_ic.m_graph.Timestep(infNode);
+					cout << infNode << "->" << timeNode <<  " | ";
+					vector<int> preds = m_ic.m_graph.Predecessors(infNode);
+				}
+				
+				print_nodes(m_ic.m_graph,0);
+				print_nodes(m_ic.m_graph,1);
+				m_ic.m_graph.ResetAttributes();
+				//exit(0);
 			}
 		}
 
@@ -340,7 +396,9 @@ class MAB {
 				// Do bandit round
 				vector<int> seeds = explore();
 				int spread = m_ic.diffusion(seeds, environment);
+				cout << "Explore seeds " << seeds <<endl;
 				cout << "Spread - " << spread <<endl;
+				//exit(0);
 
 				// UPDATE STEP
 
@@ -349,39 +407,101 @@ class MAB {
 				for (auto infNode: allInfNodes ) {
 					int infNodeInd = m_ic.m_graph.getNodeIndex(infNode);
 					int timeNode = m_ic.m_graph.Timestep(infNode);
-					cout << m_ic.m_graph.IsInfluenced(infNode) <<" " << timeNode <<endl;
+					//cout << m_ic.m_graph.IsInfluenced(infNode) <<" " << timeNode <<endl;
 					vector<int> preds = m_ic.m_graph.Predecessors(infNode);
-					for (auto pred: preds){
 
+					double probFail = 1;
+					double probSuccess = 0;
+					int flag = 0;
+
+					// this code basically computes the success probability
+					for (auto pred: preds){
+						if(m_ic.m_graph.IsInfluenced(pred) && m_ic.m_graph.Timestep(pred)<timeNode) {
+							// (S- U S+) if the parent was active at any time before t, an attempt was made
+							m_ic.m_graph.triggerETA(pred,infNode);
+						}
+
+						if (m_ic.m_graph.IsInfluenced(pred) && m_ic.m_graph.Timestep(pred)==timeNode-1) {
+							// (S+) active parents of infNode at time t-1
+							probFail *= (1-m_ic.m_graph.Estimate(pred,infNode));
+							flag = 1;
+						}
+
+					}
+
+					//if (flag == 1 and probFail!=1) {
+					if (flag ==1) {
+						// if flag is zero, then it must be seed set, we can put an assert here
+						//cout << infNode <<endl << "" << "" <<timeNode << " "<<  preds.size() << "(" << preds << ")" << flag << " " << 1-probFail <<endl;
+						//assert(std::find(seeds.begin(), seeds.end(), infNode) == seeds.end());
+						if (std::find(seeds.begin(), seeds.end(), infNode) != seeds.end()) {
+							if (probFail!=1) {
+								cout << "flag=1 founds in seeds: " << infNode <<endl;
+								cout<< infNode <<endl << "" << "" <<timeNode << " "<<  preds.size() << "(" << preds << ")" << flag << " " << 1-probFail <<endl;								
+								exit(0);
+							}
+							else {
+								cout << "flag=1 founds in seeds: " << infNode <<endl;
+								cout << infNode <<endl << "" << "" <<timeNode << " "<<  preds.size() << "(" << preds << ")" << flag << " " << 1-probFail <<endl;								
+								exit(0);
+								// probibility fail = 1
+							}
+						}
+						
+						probSuccess = 1 - probFail;
+						//assert (probSuccess <= 1.01);
+						if (probSuccess > 1.01) {
+							cout << "probSuccess > 1: " <<endl;
+						}
+
+						for (auto pred:preds) {
+							double x_uv = 0.0;
+							double old_est = m_ic.m_graph.Estimate(pred,infNode);
+							//cout << m_ic.m_graph.IsInfluenced(pred) << " " << (m_ic.m_graph.Timestep(pred)==timeNode-1) << " | "; 
+
+
+							if(m_ic.m_graph.IsInfluenced(pred) && m_ic.m_graph.Timestep(pred)<timeNode) {
+								// (S- U S+) if the parent was active at any time before t, an attempt was made
+								x_uv = 0;
+							}
+
+							if (m_ic.m_graph.IsInfluenced(pred) && m_ic.m_graph.Timestep(pred)==timeNode-1) {
+								// (S+) active parents of infNode at time t-1
+								// was able to influence
+								x_uv = (double)old_est/probSuccess;
+								cout << old_est << "/" << probSuccess << "=" <<x_uv <<" | " ;
+								//x_uv = 1;
+								//assert (x_uv <= 1.01);
+								if (x_uv > 1.01 || isnan(x_uv)) {
+									cout << "x_uv>1: " << old_est << "/" << probSuccess << "=" <<x_uv <<endl ;
+									print_graph(m_ic.m_graph);
+									exit(0);
+								}
+							}
+
+							if(m_ic.m_graph.IsInfluenced(pred) && m_ic.m_graph.Timestep(pred)<timeNode) {
+								// (S- U S+) if the parent was active at any time before t, an attempt was made
+								
+								//update
+								int eta = m_ic.m_graph.getETA(pred,infNode);
+								double new_es = old_est + (double)(x_uv - old_est) / eta;
+								//assert(new_es <= 1.01);
+								//cout << x_uv << " ";
+
+								if (new_es > 1.01 || isnan(new_es)) {
+									cout << "new_es > 1: " << new_es << " " <<old_est <<" " << x_uv << " "  << eta;
+									exit(0);
+								}
+								m_ic.m_graph.UpdateEstimate(pred,infNode, new_es);
+							}
+						}
 					}
 				}
 
-				exit(0);
-
-
-
-				m_ic.m_graph.ResetAttributes();
-
-
-
-				
-				// update graph
-				// vector<pair<int,int>> edges = m_ic.m_graph.Edges();
-				// vector <int> sh_trig = m_ic.m_graph.sharanTriggeredCounts();
-				// vector <int> sh_act = m_ic.m_graph.sharanActivatedCounts();
-				// for (int j =0;j<m_ic.m_graph.NumberOfEdges();j++){
-				// 	pair<int,int> edge = edges[j];
-				// 	int node1 = edge.first;
-				// 	int node2 = edge.second;
-				// 	if (sh_trig[j]!=0){
-				// 		double new_est = (double)sh_act[j]/ sh_trig[j];
-				// 		m_ic.m_graph.UpdateEstimate(node1, node2, new_est);						
-				// 	}
-				// }
-				
+				m_ic.m_graph.ResetAttributes();				
 
 			}
-			print_graph(m_ic.m_graph);
+			//print_graph(m_ic.m_graph);
 
 		}
 
@@ -416,11 +536,10 @@ class MAB {
 					int node2 = edge.second;
 					if (sh_trig[j]!=0){
 						double new_est = (double)sh_act[j]/ sh_trig[j];
+						//cout << new_est << endl;
 						m_ic.m_graph.UpdateEstimate(node1, node2, new_est);						
 					}
 				}
-				
-
 			}
 			print_graph(m_ic.m_graph);
 		}
@@ -531,18 +650,20 @@ int main()
 	//}
 
 	// COMPUTE EXPECTED SPREAD
-	 int mc_iter = 100;
-	 int budget = 10;
-	 int environment = 1;
-	 double expSp = expectedSpreadGraph(xg, mc_iter, budget, environment, epsilon);//spreads);
-	 cout << "Expected spead of graph - "<< expSp;
-	 exit(0);
+	 // int mc_iter = 100;
+	 // int budget = 10;
+	 // int environment = 1;
+	 // double expSp = expectedSpreadGraph(xg, mc_iter, budget, environment, epsilon);//spreads);
+	 // cout << "Expected spead of graph - "<< expSp;
+	 // exit(0);
 
 	// class MAB functions
 	IC ic(xg);
 	MAB mab(10, ic);
-	int feedback = 2;
-	int iterations = 400;
+	int feedback = 3;
+	//int iterations = 5000;
+	int iterations = 10;
+
 	 // int environment = 1; // true probablities
 	// vector <int> explore_seeds = mab.explore();
 	// cout << explore_seeds <<endl;
@@ -551,9 +672,9 @@ int main()
 	// vector <int> eg_seeds = mab.epsilonGreedy();
 	// cout << eg_seeds <<endl;
 
-	 cout << mab.exploit(0) <<endl;
+	 //cout << "Explot " << mab.exploit(0) <<endl;
 	 mab.runMAB(feedback, iterations);
-	 cout << mab.exploit(0) <<endl;
+	 //cout << "Explot " <<  mab.exploit(0) <<endl;
 
 	// double ex_spread = mab.expectedSpread(exploit_seeds, mc_iter, environment);
 	// cout << "Expected Spread - " << ex_spread <<endl;
